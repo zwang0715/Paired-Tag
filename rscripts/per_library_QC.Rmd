@@ -1,0 +1,464 @@
+
+---
+title: "Sub-Library QC Report"
+author: ''
+date: "`r format(Sys.time(), '%d/%m/%y')`"
+output:
+  html_document: default
+params:
+  dna.id: ""
+  rna.id: ""
+  genome: mm10?
+  path: ""
+  subdir: ""
+  info: ""
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+Per sub-library report for Paired-Tag datasets.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(Matrix)
+library(kableExtra)
+library(dplyr)
+library(varhandle)
+
+path=params$path
+subdir=params$subdir
+dna.id=params$dna.id
+rna.id=params$rna.id
+genome=params$genome
+info=params$info
+name <- paste0(dna.id, "_", rna.id)
+
+fastqc_dir <- paste0(path, "/00.fastqc/", subdir, "/")
+map_dir <- paste0(path, "/03.mapping/", subdir, "/")
+log_dir <- paste0(path, "/log/", subdir, "/")
+matrix_dir <- paste0(path, "/04.matrices/", subdir, "/")
+
+### if there are previously sequenced files, there would be a merging process during processing.
+old.dna.file <- file.exists(paste0(map_dir, dna.id, "_merge_", genome, "_sorted_rmdup.bam"))
+old.rna.file <- file.exists(paste0(map_dir, rna.id, "_merge_", genome, "_sorted_rmdup.bam"))
+dna.id1 <- dna.id
+rna.id1 <- rna.id
+if(old.dna.file){
+  dna.id1 <- paste0(dna.id, "_merge")
+}
+if(old.rna.file){
+  rna.id1 <- paste0(rna.id, "_merge")
+}
+
+########################
+dna.fastqc.exists = file.exists(paste0(fastqc_dir, dna.id, "_R1_fastqc.zip"))
+rna.fastqc.exists = file.exists(paste0(fastqc_dir, rna.id, "_R1_fastqc.zip"))
+fastqc.exists = dna.fastqc.exists && rna.fastqc.exists
+
+dna.pre_proc_log.exists = file.exists(paste0(log_dir, dna.id, "_qc.log"))
+rna.pre_proc_log.exists = file.exists(paste0(log_dir, rna.id, "_qc.log"))
+pre_proc_log.exists = dna.pre_proc_log.exists && rna.pre_proc_log.exists
+
+dna.mapping.exists = file.exists(paste0(map_dir, dna.id1, "_", genome, "_sorted_rmdup.bam"))
+rna.mapping.exists = file.exists(paste0(map_dir, rna.id1, "_", genome, "_sorted_rmdup.bam")) 
+mapping.exists = dna.mapping.exists && rna.mapping.exists
+
+dna.matrix.exists = file.exists(paste0(matrix_dir, dna.id1, "_", genome, "_sorted_rmdup_mtx2/matrix.mtx"))
+rna.matrix.exists = file.exists(paste0(matrix_dir, rna.id1, "_", genome, "_sorted_rmdup_mtx2/matrix.mtx"))
+matrix.exists = dna.matrix.exists && rna.matrix.exists
+########################
+```
+
+### Library ID
+> Library information: `r info` \
+> DNA: `r dna.id` \
+> RNA: `r rna.id` \
+> Previously sequenced DNA file detected: `r old.dna.file` \
+> Previously sequenced RNA file detected: `r old.rna.file` \
+> Mapping finished: `r mapping.exists` \
+> Matrix generated: `r matrix.exists` 
+
+\
+```{r seq_summary, echo=FALSE}
+total_read = 0
+assigned_read = 0
+valid_read = 0
+frac = 0
+f=0
+rtotal_read = 0
+rassigned_read = 0
+rvalid_read = 0
+rfrac = 0
+rf=0
+
+### contamination
+ddread = 0
+drread = 0
+rdread = 0
+rrread = 0
+dconf = 0
+rconf = 0
+
+if(dna.pre_proc_log.exists){
+  data <- read.csv(paste0(log_dir, dna.id, "_qc.log"), sep="\t", head=F)
+  d1 <- dim(data)[1];d2=dim(data)[2]
+  valid_reads <- as.vector(data[d1-1,1])
+  valid_reads <- as.integer(unlist(strsplit(valid_reads, " "))[1])
+  assigned_reads <- as.integer(as.vector(data[4,2]))
+  # assigned_reads <- as.integer(unlist(strsplit(assigned_reads, " "))[1])
+  total_raw <- as.integer(as.vector(data[3,d2-1]))
+  total_read <- total_raw
+  valid_read <- valid_reads
+  assigned_read = assigned_reads
+  frac = as.integer(valid_read/assigned_read*10000)/100
+  frac = paste(frac, "%", sep="")
+  f = as.integer(assigned_read/total_read*10000)/100
+  f = paste(f, "%", sep="")
+  ddread <- as.integer(as.vector(data[5,d2]))
+  drread <- as.integer(as.vector(data[6,d2]))
+  dconf = as.integer(drread / assigned_reads*10000)/100
+  dconf = paste0(dconf, "%")
+}
+if(rna.pre_proc_log.exists){
+  data <- read.csv(paste(log_dir, rna.id, "_qc.log", sep=""), sep="\t", head=F)
+  d1 <- dim(data)[1];d2=dim(data)[2]
+  valid_reads <- as.vector(data[d1-1,1])
+  valid_reads <- as.integer(unlist(strsplit(valid_reads, " "))[1])
+  assigned_reads <- as.integer(as.vector(data[4,2]))
+  # assigned_reads <- as.integer(unlist(strsplit(assigned_reads, " "))[1])
+  total_raw=as.integer(as.vector(data[3,d2-1]))
+  rtotal_read = total_raw
+  rvalid_read = valid_reads
+  rassigned_read = assigned_reads
+  rfrac = as.integer(rvalid_read/rassigned_read*10000)/100
+  rfrac = paste(rfrac, "%", sep="")
+  rf = as.integer(rassigned_read/rtotal_read*10000)/100
+  rf = paste(rf, "%", sep="")
+  rdread <- as.integer(as.vector(data[5,d2]))
+  rrread <- as.integer(as.vector(data[6,d2]))
+  rconf = as.integer(rdread / assigned_reads*10000)/100
+  rconf = paste0(rconf, "%")
+}
+
+dna_reads_unique=0
+dna_reads_all=0
+dna_mapping_rates=0
+dna_dup_rates=0
+rna_reads_unique=0
+rna_reads_all=0
+rna_mapping_rates=0
+rna_dup_rates=0
+Assigned_Reads_RNA=0
+Assigned_Reads_DNA=0
+
+if(dna.mapping.exists){
+  bam <- paste(map_dir, dna.id1, "_", genome, "_sorted_rmdup.bam", sep="") 
+  out <- system(paste("samtools flagstat ", bam, sep=""), intern=T)
+  dna_reads_unique <- as.integer(unlist(strsplit(out[1], " "))[1])
+  
+  bam <- paste(map_dir, dna.id1, "_", genome, "_sorted.bam", sep="")
+  out <- system(paste("samtools flagstat ", bam, sep=""), intern=T)
+  dna_reads_all <- as.integer(unlist(strsplit(out[1], " "))[1])
+  
+  bt.log <- paste(map_dir, dna.id1, ".log", sep="")
+  data <- read.csv(bt.log, sep="", head=F)
+  dna_mapping_rates <- data[6,1]
+  Assigned_Reads_DNA <- as.integer(data[1,1])
+  
+  dna_dup_rates <- paste((100-as.integer(dna_reads_unique*10000/dna_reads_all)/100), "%", sep="")
+}
+
+if(rna.mapping.exists){
+  bam <- paste(map_dir, rna.id1, "_", genome, "_sorted_rmdup.bam", sep="")
+  out <- system(paste("samtools flagstat ", bam, sep=""), intern=T)
+  rna_reads_unique <- as.integer(unlist(strsplit(out[1], " "))[1])
+  
+  bam <- paste(map_dir, rna.id1, "_", genome, "_sorted.bam", sep="")
+  out <- system(paste("samtools flagstat ", bam, sep=""), intern=T)
+  rna_reads_all <- as.integer(unlist(strsplit(out[1], " "))[1])
+  
+  STAR.log <- paste(map_dir, rna.id1, "_", genome, "_Log.final.out", sep="")
+  data <- read.csv(STAR.log, sep="\t", head=F)
+  rna_mapping_rates <- paste(as.numeric(gsub("%","",data[9,2])) + as.numeric(gsub("%","",data[24,2])), "%", sep="")
+  Assigned_Reads_RNA <- as.integer(data[5,2])[1]
+  
+  rna_dup_rates <- paste((100-as.integer(rna_reads_unique*10000/rna_reads_all)/100), "%", sep="")
+}
+```
+
+### Sequencing summary
+```{r summary1, echo=FALSE}
+if(mapping.exists){
+  summary1 <- data.frame(DNA = c(total_read, assigned_read, Assigned_Reads_DNA, dconf, dna_reads_all, dna_mapping_rates, dna_reads_unique, dna_dup_rates), 
+                       RNA = c(rtotal_read, rassigned_read, Assigned_Reads_RNA, rconf, rna_reads_all, rna_mapping_rates, rna_reads_unique, rna_dup_rates), 
+                       row.names = c("Sequenced reads", "Full-barcodes reads", "Barcodes-mapped reads", "% Contamination rates", "Mapped reads", "% Mapping rates", "Unique reads", "% Duplication rates"))
+}else if(dna.mapping.exists && !rna.mapping.exists){
+  summary1 <- data.frame(DNA = c(total_read, assigned_read, Assigned_Reads_DNA, dconf, dna_reads_all, dna_mapping_rates, dna_reads_unique, dna_dup_rates), 
+                       # RNA = c(rtotal_read, rassigned_read, Assigned_Reads_RNA, rconf, rna_reads_all, rna_mapping_rates, rna_reads_unique, rna_dup_rates), 
+                       row.names = c("Sequenced reads", "Full-barcodes reads", "Barcodes-mapped reads", "% Contamination rates", "Mapped reads", "% Mapping rates", "Unique reads", "% Duplication rates"))
+}else if(!dna.mapping.exists && rna.mapping.exists){
+  summary1 <- data.frame(#DNA = c(total_read, assigned_read, Assigned_Reads_DNA, dconf, dna_reads_all, dna_mapping_rates, dna_reads_unique, dna_dup_rates), 
+                       RNA = c(rtotal_read, rassigned_read, Assigned_Reads_RNA, rconf, rna_reads_all, rna_mapping_rates, rna_reads_unique, rna_dup_rates), 
+                       row.names = c("Sequenced reads", "Full-barcodes reads", "Barcodes-mapped reads", "% Contamination rates", "Mapped reads", "% Mapping rates", "Unique reads", "% Duplication rates"))
+}
+
+knitr::kable(summary1, align = c("c", "c") )%>% kable_styling(full_width = T, position = "left")
+```
+
+### Library structure
+```{r fastqc plot, echo=FALSE, fig.width=15, fig.height=12}
+
+if(dna.fastqc.exists){
+  zip.path <- paste(fastqc_dir,dna.id,"_R1_fastqc.zip",sep="")
+  image.path <- paste(dna.id,"_R1_fastqc/Images/per_base_sequence_content.png",sep="")
+  dna.read1.base_content <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(dna.id,"_R1_fastqc/Images/adapter_content.png",sep="")
+  dna.read1.adpt <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(dna.id,"_R1_fastqc/Images/duplication_levels.png",sep="")
+  dna.read1.dup <- readPNG(unzip(zip.path, image.path))
+  
+  zip.path <- paste(fastqc_dir,dna.id,"_R2_fastqc.zip",sep="")
+  image.path <- paste(dna.id,"_R2_fastqc/Images/per_base_sequence_content.png",sep="")
+  dna.read2.base_content <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(dna.id,"_R2_fastqc/Images/adapter_content.png",sep="")
+  dna.read2.adpt <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(dna.id,"_R2_fastqc/Images/duplication_levels.png",sep="")
+  dna.read2.dup <- readPNG(unzip(zip.path, image.path))
+}
+if(rna.fastqc.exists){
+  zip.path <- paste(fastqc_dir,rna.id,"_R1_fastqc.zip",sep="")
+  image.path <- paste(rna.id,"_R1_fastqc/Images/per_base_sequence_content.png",sep="")
+  rna.read1.base_content <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(rna.id,"_R1_fastqc/Images/adapter_content.png",sep="")
+  rna.read1.adpt <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(rna.id,"_R1_fastqc/Images/duplication_levels.png",sep="")
+  rna.read1.dup <- readPNG(unzip(zip.path, image.path))
+  
+  zip.path <- paste(fastqc_dir,rna.id,"_R2_fastqc.zip",sep="")
+  image.path <- paste(rna.id,"_R2_fastqc/Images/per_base_sequence_content.png",sep="")
+  rna.read2.base_content <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(rna.id,"_R2_fastqc/Images/adapter_content.png",sep="")
+  rna.read2.adpt <- readPNG(unzip(zip.path, image.path))
+  image.path <- paste(rna.id,"_R2_fastqc/Images/duplication_levels.png",sep="")
+  rna.read2.dup <- readPNG(unzip(zip.path, image.path))
+}
+  if(
+    fastqc.exists){par(mfrow=c(4,3), mar=c(0,0,1,0))
+  }else if(dna.fastqc.exists && !rna.fastqc.exists){
+    par(mfrow=c(2,3), mar=c(0,0,1,0))
+  }else if(!dna.fastqc.exists && rna.fastqc.exists){
+    par(mfrow=c(2,3), mar=c(0,0,1,0))
+  }
+
+  if(dna.fastqc.exists){
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read1 Base Content (DNA)"); rasterImage(dna.read1.base_content, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read1 Adaptor Content (DNA)"); rasterImage(dna.read1.adpt, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read1 Duplication Estimate (DNA)"); rasterImage(dna.read1.dup, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read2 Base Content (DNA)"); rasterImage(dna.read2.base_content, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read2 Adaptor Estimate (DNA)"); rasterImage(dna.read2.adpt, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read2 Duplication Estimate (DNA)"); rasterImage(dna.read2.dup, 1,1,10,10)
+  }
+  if(rna.fastqc.exists){
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read1 Base Content (RNA)"); rasterImage(rna.read1.base_content, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read1 Adaptor Content (RNA)"); rasterImage(rna.read1.adpt, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read1 Duplication Estimate (RNA)"); rasterImage(rna.read1.dup, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read2 Base Content (RNA)"); rasterImage(rna.read2.base_content, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read2 Adaptor Estimate (RNA)"); rasterImage(rna.read2.adpt, 1,1,10,10)
+  plot(1:10, ty="n", bty="n", axes = F, xlab=NA, ylab=NA, main="Read2 Duplication Estimate (RNA)"); rasterImage(rna.read2.dup, 1,1,10,10)
+  }
+  par(mfrow=c(1,1))
+```
+
+### Library size reports
+```{r library_size, echo=FALSE, fig.width=12, fig.height=8}
+n_cell_dna = 0
+n_cell_rna = 0
+n_cell_valid = 0
+f_cell_valid = 0
+med_UMI_RNA = 0
+med_gene_RNA = 0
+med_frag_DNA = 0
+med_feature_DNA = 0
+DNA_UMI_cutoff = 0
+RNA_UMI_cutoff = 0
+
+# find cutoff
+  get.elbow.points.indices <- function(x, y, threshold) {
+    d1 <- diff(y) / diff(x) # first derivative
+    d2 <- diff(d1) / diff(x[-1]) # second derivative
+    indices <- which(abs(d2) > threshold)  
+    return(indices)
+  }
+  
+if(dna.matrix.exists){ # CZ865_merge_mm10_sorted_rmdup_mtx2
+  dna.mat <- readMM(paste(matrix_dir, dna.id1, "_", genome, "_sorted_rmdup_mtx2/matrix.mtx", sep=""))
+  dna.bc <- read.csv(paste(matrix_dir, dna.id1, "_", genome, "_sorted_rmdup_mtx2/barcodes.tsv", sep=""), sep="\t", head=F)
+  colnames(dna.mat)<-dna.bc[,1]
+  dna.counts<-colSums(dna.mat)
+  dna.mat@x[dna.mat@x>1]<-1
+  dna.f.counts<-colSums(dna.mat)
+  rm(dna.mat)
+  names(dna.f.counts)<-dna.bc[,1]
+  m <- merge(dna.counts, dna.counts, by=0)
+}
+  if(rna.matrix.exists){ 
+  rna.mat <- readMM(paste(matrix_dir, rna.id1, "_", genome, "_sorted_rmdup_mtx2/matrix.mtx", sep=""))
+  rna.bc <- read.csv(paste(matrix_dir, rna.id1, "_", genome, "_sorted_rmdup_mtx2/barcodes.tsv", sep=""), sep="\t", head=F)
+  colnames(rna.mat)<-rna.bc[,1]
+  rna.counts<-colSums(rna.mat)
+  rna.mat@x[rna.mat@x>1]<-1
+  rna.f.counts<-colSums(rna.mat)
+  rm(rna.mat)
+  names(rna.f.counts)<-rna.bc[,1]
+  m <- merge(rna.counts, rna.counts, by=0)
+  }
+  
+  #### subset based on both modality
+  if(matrix.exists){ 
+  m <- merge(dna.counts, rna.counts, by=0)
+  }
+  # sample range to find cutoff
+  s1=100;s2=20000
+  if(rna.matrix.exists || rna.matrix.exists){
+    if(s2>=nrow(m)){
+    print(paste0("BC fewer than", sep = " ", s2, "(´･Д･)」"))
+    s2=nrow(m)
+    if(1.5*s1>=nrow(m)){
+      print(paste0("BC fewer than", sep = " ", 1.5*s1, "(´･Д･)」"))
+      s1=1
+    }
+  }
+}
+  
+if(dna.matrix.exists){
+  d.sort<-rev(sort(m[,2]))
+  d.sort.subset<-d.sort[s1:s2]
+  x<-get.elbow.points.indices(c(1:length(d.sort.subset)), log10(d.sort.subset), 0.0005);x<-min(median(x),mean(x))
+  DNA_UMI_cutoff<-d.sort[x[1]+s1-1]
+}
+  if(rna.matrix.exists){
+  r.sort<-rev(sort(m[,3]))
+  r.sort.subset<-r.sort[s1:s2]
+  x<-get.elbow.points.indices(c(1:length(r.sort.subset)), log10(r.sort.subset), 0.0005);x<-min(median(x),mean(x))
+  RNA_UMI_cutoff<-r.sort[x[1]+s1-1]
+  if(RNA_UMI_cutoff<100){
+    print(paste0("RNA_UMI_cutoff fewer than 100. Set to 100."))
+    RNA_UMI_cutoff=100
+  }
+  }
+  
+  if(matrix.exists){ 
+  layout(matrix(c(1,1,3,3,3,3,1,1,3,3,3,3,2,2,3,3,3,3,2,2,3,3,3,3), 4,6, byrow = T))
+  plot(d.sort, pch=19, cex=0.25, log="xy", xlab="# of barcodes (DNA)", ylab="# of unique fragments (DNA) per nuclei", col="grey")
+  points(d.sort[d.sort>DNA_UMI_cutoff], pch=19, cex=0.5, col="red")
+  f_reads_dna <- as.integer(sum(d.sort[d.sort>DNA_UMI_cutoff])/sum(d.sort) * 10000) / 100;f_reads_dna<-paste(f_reads_dna, "%", sep="")
+  legend("bottomleft", bty="n", legend=c(paste("Cutoff:", DNA_UMI_cutoff, sep=" "), paste("Median#:", median(d.sort[d.sort>DNA_UMI_cutoff]), sep=" "), paste("Frac Reads:",f_reads_dna, sep=" ")))
+  plot(r.sort, pch=19, cex=0.25, log="xy", xlab="# of barcodes (RNA)", ylab="# of UMI (RNA) per nuclei", col="grey"); points(r.sort[r.sort>RNA_UMI_cutoff], pch=19, cex=0.5, col="red")
+  f_reads_rna <- as.integer(sum(r.sort[r.sort>RNA_UMI_cutoff])/sum(r.sort) * 10000) / 100;f_reads_rna<-paste(f_reads_rna, "%", sep="")
+  legend("bottomleft", bty="n", legend=c(paste("Cutoff:", RNA_UMI_cutoff, sep=" "), paste("Median#:", median(r.sort[r.sort>RNA_UMI_cutoff]), sep=" "), paste("Frac Reads:",f_reads_rna, sep=" ")))  
+  n_cell_dna <- length(d.sort[d.sort>DNA_UMI_cutoff]);n_cell_rna<-length(r.sort[r.sort>RNA_UMI_cutoff])
+  m_filt<-m[m[,2]>DNA_UMI_cutoff & m[,3]>RNA_UMI_cutoff,]
+  plot(m[,2:3], pch=19, cex=0.25, col="grey", log="xy", xlab="# of barcodes (DNA)", ylab="# of barcodes (RNA)");points(m_filt[,2:3], pch=19, cex=0.25, col="red");lines(c(DNA_UMI_cutoff, DNA_UMI_cutoff), c(1,100000), lwd=2, lty=2, col="grey");lines(c(DNA_UMI_cutoff, DNA_UMI_cutoff), c(1,100000), lwd=1, lty=2, col="grey");lines(c(1,1000000), c(RNA_UMI_cutoff, RNA_UMI_cutoff), lwd=1, lty=2, col="grey")
+  n_cell_valid <- dim(m_filt)[1];quadrant2<-dim(m[m[,2]<DNA_UMI_cutoff & m[,3]>RNA_UMI_cutoff,])[1];quadrant4<-dim(m[m[,2]>DNA_UMI_cutoff & m[,3]<RNA_UMI_cutoff,])[1]
+  legend("topleft", bty="n", legend=c(paste("n = ", quadrant2)));legend("bottomright", bty="n", legend=c(paste("n = ", quadrant4)));legend("topright", bty="n", legend=c(paste("n = ", n_cell_valid)))
+  med_UMI_RNA<-median(m_filt[,3]);med_frag_DNA<-median(m_filt[,2])
+  med_gene_RNA<-median(rna.f.counts[as.vector(m_filt[,1])]);med_feature_DNA<-median(dna.f.counts[as.vector(m_filt[,1])])
+  f1<-as.integer(n_cell_valid / n_cell_dna * 10000) / 100;f2<-as.integer(n_cell_valid / n_cell_rna * 10000) / 100
+  f_cell_valid <- paste(f2, "% for RNA; and ",f1,"% for DNA", sep="")
+  write.table(m_filt[,1], sep="\t", quote=F, col.names=F, row.names=F, file=paste(path, "/05.R/", subdir, "/Valid_Cells_", dna.id, "_", rna.id, ".xls", sep=""))
+  
+  out <- data.frame(dna = c("DNA", total_read, assigned_read, ddread, drread, dconf, Assigned_Reads_DNA, dna_reads_all, dna_mapping_rates, dna_reads_unique, dna_dup_rates, n_cell_dna, n_cell_valid, DNA_UMI_cutoff, med_frag_DNA, med_feature_DNA),
+                    rna = c("RNA", rtotal_read, rassigned_read, rdread, rrread, rconf, Assigned_Reads_RNA, rna_reads_all, rna_mapping_rates, rna_reads_unique, rna_dup_rates, n_cell_rna, n_cell_valid, RNA_UMI_cutoff, med_UMI_RNA, med_gene_RNA))
+  rownames(out) <- c("Type", "Sequenced reads", "Full-barcodes reads", "DNA modality", "RNA modality", "% Contamination", "Barcodes-mapped reads", "Mapped reads", "% Mapping", "Unique reads", "% Duplication", "PF cells", "Joint PF cells", "Reads / UMI cutoff", "Median reads / UMI", "Median features / genes")
+  colnames(out) <- c(dna.id1, rna.id1)
+  write.table(out, col.names=T, row.names=T, sep="\t", quote=F, file=paste(path, "/05.R/", subdir, "/", "Paired-Tag_QC_reports/QC_Summary_", dna.id, "_", rna.id, ".xls", sep=""))
+  }
+  
+    if(dna.matrix.exists  && !rna.matrix.exists){ 
+      ### one plot only
+  # layout(matrix(c(1,1,3,3,3,3,1,1,3,3,3,3,2,2,3,3,3,3,2,2,3,3,3,3), 4,6, byrow = T))
+  plot(d.sort, pch=19, cex=0.25, log="xy", xlab="# of barcodes (DNA)", ylab="# of unique fragments (DNA) per nuclei", col="grey")
+  points(d.sort[d.sort>DNA_UMI_cutoff], pch=19, cex=0.5, col="red")
+  f_reads_dna <- as.integer(sum(d.sort[d.sort>DNA_UMI_cutoff])/sum(d.sort) * 10000) / 100;f_reads_dna<-paste(f_reads_dna, "%", sep="")
+  legend("bottomleft", bty="n", legend=c(paste("Cutoff:", DNA_UMI_cutoff, sep=" "), paste("Median#:", median(d.sort[d.sort>DNA_UMI_cutoff]), sep=" "), paste("Frac Reads:",f_reads_dna, sep=" ")))
+  # plot(r.sort, pch=19, cex=0.25, log="xy", xlab="# of barcodes (RNA)", ylab="# of UMI (RNA) per nuclei", col="grey"); points(r.sort[r.sort>RNA_UMI_cutoff], pch=19, cex=0.5, col="red")
+  # f_reads_rna <- as.integer(sum(r.sort[r.sort>RNA_UMI_cutoff])/sum(r.sort) * 10000) / 100;f_reads_rna<-paste(f_reads_rna, "%", sep="")
+  # legend("bottomleft", bty="n", legend=c(paste("Cutoff:", RNA_UMI_cutoff, sep=" "), paste("Median#:", median(r.sort[r.sort>RNA_UMI_cutoff]), sep=" "), paste("Frac Reads:",f_reads_rna, sep=" ")))  
+  n_cell_dna <- length(d.sort[d.sort>DNA_UMI_cutoff])
+  # n_cell_rna<-length(r.sort[r.sort>RNA_UMI_cutoff])
+  m_filt<-m[m[,2]>DNA_UMI_cutoff,]
+  # plot(m[,2:3], pch=19, cex=0.25, col="grey", log="xy", xlab="# of barcodes (DNA)", ylab="# of barcodes (RNA)");points(m_filt[,2:3], pch=19, cex=0.25, col="red");lines(c(DNA_UMI_cutoff, DNA_UMI_cutoff), c(1,100000), lwd=2, lty=2, col="grey");lines(c(DNA_UMI_cutoff, DNA_UMI_cutoff), c(1,100000), lwd=1, lty=2, col="grey");lines(c(1,1000000), c(RNA_UMI_cutoff, RNA_UMI_cutoff), lwd=1, lty=2, col="grey")
+  # n_cell_valid <- dim(m_filt)[1];quadrant2<-dim(m[m[,2]<DNA_UMI_cutoff & m[,3]>RNA_UMI_cutoff,])[1];quadrant4<-dim(m[m[,2]>DNA_UMI_cutoff & m[,3]<RNA_UMI_cutoff,])[1]
+  # legend("topleft", bty="n", legend=c(paste("n = ", quadrant2)));legend("bottomright", bty="n", legend=c(paste("n = ", quadrant4)));legend("topright", bty="n", legend=c(paste("n = ", n_cell_valid)))
+  # med_UMI_RNA<-median(m_filt[,3])
+  med_frag_DNA<-median(m_filt[,2])
+  # med_gene_RNA<-median(rna.f.counts[as.vector(m_filt[,1])])
+  med_feature_DNA<-median(dna.f.counts[as.vector(m_filt[,1])])
+  f1<-as.integer(n_cell_valid / n_cell_dna * 10000) / 100
+  # f2<-as.integer(n_cell_valid / n_cell_rna * 10000) / 100
+  f_cell_valid <- paste(f1,"% for DNA", sep="")
+  write.table(m_filt[,1], sep="\t", quote=F, col.names=F, row.names=F, file=paste(path, "/05.R/", subdir, "/", "Valid_Cells_", dna.id, "_only", ".xls", sep=""))
+  
+  out <- data.frame(dna = c("DNA", total_read, assigned_read, ddread, drread, dconf, Assigned_Reads_DNA, dna_reads_all, dna_mapping_rates, dna_reads_unique, dna_dup_rates, n_cell_dna, n_cell_valid, DNA_UMI_cutoff, med_frag_DNA, med_feature_DNA))
+                    # rna = c("RNA", rtotal_read, rassigned_read, rdread, rrread, rconf, Assigned_Reads_RNA, rna_reads_all, rna_mapping_rates, rna_reads_unique, rna_dup_rates, n_cell_rna, n_cell_valid, RNA_UMI_cutoff, med_UMI_RNA, med_gene_RNA))
+  rownames(out) <- c("Type", "Sequenced reads", "Full-barcodes reads", "DNA modality", "RNA modality", "% Contamination", "Barcodes-mapped reads", "Mapped reads", "% Mapping", "Unique reads", "% Duplication", "PF cells", "Joint PF cells", "Reads / UMI cutoff", "Median reads / UMI", "Median features / genes")
+  colnames(out) <- c(dna.id1)
+  write.table(out, col.names=T, row.names=T, sep="\t", quote=F, file=paste(path, "/05.R/", subdir, "/", "Paired-Tag_QC_reports/QC_Summary_", dna.id, "_only", ".xls", sep=""))
+}
+
+  if(!dna.matrix.exists  && rna.matrix.exists){ 
+    ### one plot only
+  # layout(matrix(c(1,1,3,3,3,3,1,1,3,3,3,3,2,2,3,3,3,3,2,2,3,3,3,3), 4,6, byrow = T))
+  # plot(d.sort, pch=19, cex=0.25, log="xy", xlab="# of barcodes (DNA)", ylab="# of unique fragments (DNA) per nuclei", col="grey")
+  # points(d.sort[d.sort>DNA_UMI_cutoff], pch=19, cex=0.5, col="red")
+  # f_reads_dna <- as.integer(sum(d.sort[d.sort>DNA_UMI_cutoff])/sum(d.sort) * 10000) / 100;f_reads_dna<-paste(f_reads_dna, "%", sep="")
+  # legend("bottomleft", bty="n", legend=c(paste("Cutoff:", DNA_UMI_cutoff, sep=" "), paste("Median#:", median(d.sort[d.sort>DNA_UMI_cutoff]), sep=" "), paste("Frac Reads:",f_reads_dna, sep=" ")))
+  plot(r.sort, pch=19, cex=0.25, log="xy", xlab="# of barcodes (RNA)", ylab="# of UMI (RNA) per nuclei", col="grey"); points(r.sort[r.sort>RNA_UMI_cutoff], pch=19, cex=0.5, col="red")
+  f_reads_rna <- as.integer(sum(r.sort[r.sort>RNA_UMI_cutoff])/sum(r.sort) * 10000) / 100;f_reads_rna<-paste(f_reads_rna, "%", sep="")
+  legend("bottomleft", bty="n", legend=c(paste("Cutoff:", RNA_UMI_cutoff, sep=" "), paste("Median#:", median(r.sort[r.sort>RNA_UMI_cutoff]), sep=" "), paste("Frac Reads:",f_reads_rna, sep=" ")))  
+  # n_cell_dna <- length(d.sort[d.sort>DNA_UMI_cutoff])
+  n_cell_rna<-length(r.sort[r.sort>RNA_UMI_cutoff])
+  m_filt<-m[m[,3]>RNA_UMI_cutoff,]
+  # plot(m[,2:3], pch=19, cex=0.25, col="grey", log="xy", xlab="# of barcodes (DNA)", ylab="# of barcodes (RNA)");points(m_filt[,2:3], pch=19, cex=0.25, col="red");lines(c(DNA_UMI_cutoff, DNA_UMI_cutoff), c(1,100000), lwd=2, lty=2, col="grey");lines(c(DNA_UMI_cutoff, DNA_UMI_cutoff), c(1,100000), lwd=1, lty=2, col="grey");lines(c(1,1000000), c(RNA_UMI_cutoff, RNA_UMI_cutoff), lwd=1, lty=2, col="grey")
+  # n_cell_valid <- dim(m_filt)[1];quadrant2<-dim(m[m[,2]<DNA_UMI_cutoff & m[,3]>RNA_UMI_cutoff,])[1];quadrant4<-dim(m[m[,2]>DNA_UMI_cutoff & m[,3]<RNA_UMI_cutoff,])[1]
+  # legend("topleft", bty="n", legend=c(paste("n = ", quadrant2)));legend("bottomright", bty="n", legend=c(paste("n = ", quadrant4)));legend("topright", bty="n", legend=c(paste("n = ", n_cell_valid)))
+  med_UMI_RNA<-median(m_filt[,3])
+  # med_frag_DNA<-median(m_filt[,2])
+  med_gene_RNA<-median(rna.f.counts[as.vector(m_filt[,1])])
+  # med_feature_DNA<-median(dna.f.counts[as.vector(m_filt[,1])])
+  # f1<-as.integer(n_cell_valid / n_cell_dna * 10000) / 100
+  f2<-as.integer(n_cell_valid / n_cell_rna * 10000) / 100
+  f_cell_valid <- paste(f2, "% for RNA", sep="")
+  write.table(m_filt[,1], sep="\t", quote=F, col.names=F, row.names=F, file=paste(path, "/05.R/", subdir, "/", "Valid_Cells_", rna.id, "_only", ".xls", sep=""))
+  
+  out <- data.frame(# dna = c("DNA", total_read, assigned_read, ddread, drread, dconf, Assigned_Reads_DNA, dna_reads_all, dna_mapping_rates, dna_reads_unique, dna_dup_rates, n_cell_dna, n_cell_valid, DNA_UMI_cutoff, med_frag_DNA, med_feature_DNA),
+                    rna = c("RNA", rtotal_read, rassigned_read, rdread, rrread, rconf, Assigned_Reads_RNA, rna_reads_all, rna_mapping_rates, rna_reads_unique, rna_dup_rates, n_cell_rna, n_cell_valid, RNA_UMI_cutoff, med_UMI_RNA, med_gene_RNA))
+  rownames(out) <- c("Type", "Sequenced reads", "Full-barcodes reads", "DNA modality", "RNA modality", "% Contamination", "Barcodes-mapped reads", "Mapped reads", "% Mapping", "Unique reads", "% Duplication", "PF cells", "Joint PF cells", "Reads / UMI cutoff", "Median reads / UMI", "Median features / genes")
+  colnames(out) <- c(rna.id1)
+  write.table(out, col.names=T, row.names=T, sep="\t", quote=F, file=paste(path, "/05.R/", subdir, "/", "Paired-Tag_QC_reports/QC_Summary_", rna.id, "_only", ".xls", sep=""))
+  }
+```
+
+### Summary of this sub-library
+```{r summary2, echo=FALSE}
+if(mapping.exists){
+summary2 <- data.frame(row.names = c("# of cells with PF DNA profile", "# of cells with PF RNA profile", "# of cells with PF Paired profiles", "Cutoff for RNA", "Cutoff for DNA", "Median # UMI per nuclei", "Median # genes per nuclei", "Median # fragments per nuclei", "Median # features per nuclei"), 
+                       Value = c(n_cell_dna, n_cell_rna, n_cell_valid, RNA_UMI_cutoff, DNA_UMI_cutoff, med_UMI_RNA, med_gene_RNA, med_frag_DNA, med_feature_DNA))
+knitr::kable(summary2, align = "c") %>% kable_styling(full_width = T, position = "left")
+}else if(dna.mapping.exists && !rna.mapping.exists){
+  summary2 <- data.frame(row.names = c("# of cells with PF DNA profile","Cutoff for DNA", "Median # fragments per nuclei", "Median # features per nuclei"), 
+                       Value = c(n_cell_dna, DNA_UMI_cutoff, med_frag_DNA, med_feature_DNA))
+knitr::kable(summary2, align = "c") %>% kable_styling(full_width = T, position = "left")
+}else if(!dna.mapping.exists && rna.mapping.exists){
+  data.frame(row.names = c("# of cells with PF RNA profile", "Cutoff for RNA", "Median # UMI per nuclei", "Median # genes per nuclei"), 
+                       Value = c(n_cell_rna, RNA_UMI_cutoff, med_UMI_RNA, med_gene_RNA))
+knitr::kable(summary2, align = "c") %>% kable_styling(full_width = T, position = "left")
+}
+```

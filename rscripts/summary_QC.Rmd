@@ -1,0 +1,134 @@
+---
+title: "Paired-Tag QC summary"
+author: ""
+date: "`r format(Sys.time(), '%d/%m/%y')`"
+output: html_document
+params:
+  metaf: ""
+  path: ""
+  subdir: ""
+---
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+library(knitr)
+library(varhandle)
+library(dplyr)
+library(kableExtra)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+metaf=params$metaf
+path=params$path
+subdir=params$subdir
+
+input<-read.csv(metaf, sep="\t", head=F)
+colnames(input)<-c("DNA_ID","RNA_ID","Genome","Annotations","mode")
+```
+
+### Project summary
+
+```{r read_information, include=FALSE, fig.width=14, fig.height=9}
+meta <- list()
+for (i in 1:nrow(input)){
+  file_name <- paste(path, "/05.R/", subdir, "/", "Paired-Tag_QC_reports/QC_Summary_", as.vector(input[i,1]), "_", as.vector(input[i,2]), ".xls", sep="")
+  meta[[i]] <- read.csv(file_name, sep="\t", header = T, row.names = 1)
+}
+meta <- do.call(cbind, meta)
+write.table(meta, col.names=T, row.names=T, sep="\t", quote=F, file=paste0(path, "/05.R/", subdir, "/", "Paired-Tag_QC_reports/QC_Summary_metaData_Table.xls"))
+```
+
+
+```{r plot, include=TRUE,echo=FALSE, fig.width=20, fig.height=10}
+meta.s<-meta
+llDNA <- which(meta.s[1,] == "DNA")
+llRNA <- which(meta.s[1,] == "RNA")
+lDNA <- colnames(meta.s[, llDNA])
+lRNA <- colnames(meta.s[, llRNA])
+
+par(mfrow=c(2,4))
+# ## frac valid DNA
+# frac<-as.numeric((meta.s[3,])/(meta.s[1,])*100)
+# col<-rep("firebrick3", n_libs)
+# col[frac>60]<-"goldenrod3";col[frac>70]<-"darkolivegreen4";col[frac>80]<-"forestgreen";col[frac>90]<-"deepskyblue3"
+# names(frac)<-as.vector(input$V1)
+# barplot(frac, ylim=c(0,100), ylab="Valid Reads (%) - DNA", border=F, col=col, main="Fraction of Valid Reads DNA", las=2, names.arg=as.vector(input$DNA_ID))
+
+# ## frac assigned DNA
+# frac<-as.numeric((meta.s[7,])/(meta.s[3,])*100)
+# col<-rep("firebrick3", n_libs)
+# col[frac>60]<-"goldenrod3";col[frac>70]<-"darkolivegreen4";col[frac>80]<-"forestgreen";col[frac>90]<-"deepskyblue3"
+# barplot(frac, ylim=c(0,100), ylab="Assigned Reads (%) - DNA", border=NA, col=col, main="Fraction of Assigned Reads DNA", las=2, names.arg=as.vector(input$DNA_ID))
+
+## frac mapped DNA
+n_libs <- length(lDNA)
+frac<-as.numeric(meta.s[8, llDNA])/as.numeric(meta.s[7, llDNA])*100
+col<-rep("firebrick3", n_libs)
+col[frac>20]<-"goldenrod3";col[frac>40]<-"darkolivegreen4";col[frac>65]<-"forestgreen";col[frac>80]<-"deepskyblue3"
+barplot(frac, ylim=c(0,100), ylab="Mapped Reads (%) - DNA", border=NA, col=col, main="Fraction of Mapped Reads DNA", las=2, names.arg=as.vector(lDNA))
+
+## frac dup DNA
+frac<-100-as.numeric(meta.s[10, llDNA])/as.numeric(meta.s[8, llDNA])*100
+col<-rep("firebrick3", n_libs)
+col[frac<70]<-"goldenrod3";col[frac<50]<-"darkolivegreen4";col[frac<30]<-"forestgreen";col[frac<10]<-"deepskyblue3"
+barplot(frac, ylim=c(0,100), ylab="Duplication Rates (%) - DNA", border=NA, col=col, main="Duplication Rates DNA", las=2, names.arg=as.vector(lDNA))
+
+# ## frac valid RNA
+# frac<-as.numeric((meta.s[4,])/(meta.s[2,])*100)
+# col<-rep("firebrick3", n_libs)
+# col[frac>60]<-"goldenrod3";col[frac>70]<-"darkolivegreen4";col[frac>80]<-"forestgreen";col[frac>90]<-"deepskyblue3"
+# names(frac)<-as.vector(input$V1)
+# barplot(frac, ylim=c(0,100), ylab="Valid Reads (%) - RNA", border=F, col=col, main="Fraction of Valid Reads RNA", las=2, names.arg=as.vector(input$RNA_ID))
+
+# ## frac assigned RNA
+# frac<-as.numeric((meta.s[8,])/(meta.s[4,])*100)
+# col<-rep("firebrick3", n_libs)
+# col[frac>60]<-"goldenrod3";col[frac>70]<-"darkolivegreen4";col[frac>80]<-"forestgreen";col[frac>90]<-"deepskyblue3"
+# barplot(frac, ylim=c(0,100), ylab="Assigned Reads (%) - RNA", border=NA, col=col, main="Fraction of Assigned Reads RNA", las=2, names.arg=as.vector(input$RNA_ID))
+
+## frac mapped RNA
+n_libs <- length(lRNA)
+frac<-as.numeric(meta.s[8, llRNA])/as.numeric(meta.s[7, llRNA])*100
+col<-rep("firebrick3", n_libs)
+col[frac>20]<-"goldenrod3";col[frac>40]<-"darkolivegreen4";col[frac>65]<-"forestgreen";col[frac>80]<-"deepskyblue3"
+barplot(frac, ylim=c(0,100), ylab="Mapped Reads (%) - RNA", border=NA, col=col, main="Fraction of Mapped Reads RNA", las=2, names.arg=as.vector(lRNA))
+
+## frac dup RNA
+frac<-100-as.numeric(meta.s[10, llRNA])/as.numeric(meta.s[8, llRNA])*100
+col<-rep("firebrick3", n_libs)
+col[frac<70]<-"goldenrod3";col[frac<50]<-"darkolivegreen4";col[frac<30]<-"forestgreen";col[frac<10]<-"deepskyblue3"
+barplot(frac, ylim=c(0,100), ylab="Duplication Rates (%) - RNA", border=NA, col=col, main="Duplication Rates RNA", las=2, names.arg=as.vector(lRNA))
+
+## n_UMI_RNA
+num<-as.numeric((meta.s[15, llRNA]))
+barplot(num, ylim=c(1, max(num)*5), ylab="# of UMI per nuclei (RNA)", border=NA, col="grey", main="# of UMI (RNA)", las=2, names.arg=as.vector(lRNA), log="y")
+
+## n_genes_RNA
+num<-as.numeric((meta.s[16, llRNA]))
+barplot(num, ylim=c(1, max(num)*5), ylab="# of genes per nuclei (RNA)", border=NA, col="grey", main="# of genes (RNA)", las=2, names.arg=as.vector(lRNA), log="y")
+
+n_libs <- length(lDNA)
+## n_frag_DNA
+num<-as.numeric((meta.s[15, llDNA]))
+barplot(num, ylim=c(1, max(num)*5), ylab="# of fragments per nuclei (DNA)", border=NA, col="grey", main="# of fragments (DNA)", las=2, names.arg=as.vector(lDNA), log="y")
+
+## n_features_DNA
+num<-as.numeric((meta.s[16, llDNA]))
+barplot(num, ylim=c(1, max(num)*5), ylab="# of features per nuclei (DNA)", border=NA, col="grey", main="# of features (DNA)", las=2, names.arg=as.vector(lDNA), log="y")
+
+```
+
+### Sublibrary summary
+
+```{r table, echo=FALSE}
+aheader = rep(2, ncol(meta.s)/2)
+names(aheader) = paste0(colnames(meta.s[,c(TRUE,FALSE)]), "_", colnames(meta.s[,!c(TRUE,FALSE)]))
+knitr::kable(meta.s, align = "c") %>% kable_styling(full_width = T, position = "left") %>% add_header_above(header = c(" " = 1, aheader), bold = T)
+```
+

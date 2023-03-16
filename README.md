@@ -1,5 +1,17 @@
 # Preprocessing of Paired-Tag/Paired-seq datasets
 
+#### update 230216
+Updates compared to [the original repo](https://github.com/cxzhu/Paired-Tag):
+- scripts for processing: 
+   <code>shellscrips/02.proc_DNA_PT_v3.sh</code> 
+   <code>shellscrips/03.proc_RNA_PT_v3.sh</code> 
+- scripts for QC: 
+   <code>rscripts/\*Rmd</code>
+   <code>rscripts/run_QC_summary.pl</code>
+- cross-modality contamination is now identified during <code>reachtools combine</code> 
+
+***
+
 #### For latest protocol, please refer to [Paired-Tag protocol & FAQs](https://github.com/cxzhu/Paired-Tag/tree/master/protocol).
 
 #### Please have the following softwares installed first:
