@@ -3,8 +3,8 @@
 #### update 230216
 Updates compared to [the original repo](https://github.com/cxzhu/Paired-Tag):
 - scripts for processing: 
-   <code>shellscrips/02.proc_DNA_PT_v3.sh</code> 
-   <code>shellscrips/03.proc_RNA_PT_v3.sh</code> 
+   <code>shellscripts/02.proc_DNA_PT_v3.sh</code> 
+   <code>shellscripts/03.proc_RNA_PT_v3.sh</code> 
 - scripts for QC: 
    <code>rscripts/\*Rmd</code>
    <code>rscripts/run_QC_summary.pl</code>
